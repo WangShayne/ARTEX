@@ -30,7 +30,7 @@ def wait_for_database(name):
 
 # All HTTP traffic stays inside the app container; tokens never leave this process.
 API_CHECK = r'''
-import json, os, time, urllib.request, urllib.error
+import http.client, json, os, socket, time, urllib.request, urllib.error
 base = 'http://127.0.0.1:8787'
 def request(path, body=None, token=None, method=None):
     headers = {'Content-Type': 'application/json'}
@@ -75,6 +75,23 @@ if not initialized:
     assert saved['retry_count'] == 2 and saved['retry_interval_ms'] == 125, saved
 else:
     assert config['retry_interval_ms'] == 125, config
+    # Incomplete authentication bodies must release the shared admission slots.
+    connections = []
+    try:
+        for _ in range(4):
+            conn = socket.create_connection(('127.0.0.1', 8787), timeout=8)
+            connections.append(conn)
+            conn.sendall(b'POST /api/auth/login HTTP/1.1\r\nHost: localhost\r\n'
+                         b'Content-Type: application/json\r\nContent-Length: 100\r\n\r\n')
+        for conn in connections:
+            response = http.client.HTTPResponse(conn)
+            response.begin()
+            assert response.status == 400, response.status
+            response.close()
+        assert json.loads(request('/api/auth/login', credentials))['token']
+    finally:
+        for conn in connections:
+            conn.close()
 if not initialized:
     request('/api/auth/change-password', {'old_password': credentials['password'],
                                          'new_password': 'ArtexSmokeUpdated2026!'}, token)
@@ -99,7 +116,7 @@ if not initialized:
     # An already-authenticated owner can change the password to clear a lock.
     request('/api/auth/change-password', {'old_password': 'ArtexSmokeUpdated2026!',
                                          'new_password': 'ArtexSmokeUpdated2026!'}, token)
-print('PASS version, database migrations, embedded UI, session revocation, lockout and persisted settings')
+print('PASS version, database migrations, embedded UI, session revocation, lockout, bounded authentication reads and persisted settings')
 '''
 
 BROWSER_CHECK = r'''

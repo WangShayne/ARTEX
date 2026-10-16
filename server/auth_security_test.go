@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +17,47 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func TestAuthSlowBodyReleasesAuthenticationSlots(t *testing.T) {
+	s, _ := securityAuthFixture(t)
+	server := httptest.NewServer(securityAuthMux(s))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	connections := make([]net.Conn, 0, 4)
+	defer func() {
+		for _, conn := range connections {
+			conn.Close()
+		}
+	}()
+	for range 4 {
+		conn, err := net.Dial("tcp", u.Host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		connections = append(connections, conn)
+		fmt.Fprintf(conn, "POST /api/auth/login HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n")
+	}
+	for _, conn := range connections {
+		conn.SetReadDeadline(time.Now().Add(7 * time.Second))
+		response, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			t.Fatalf("slow request did not time out and release its slot: %v", err)
+		}
+		response.Body.Close()
+		if response.StatusCode != 400 {
+			t.Fatalf("slow body status=%d", response.StatusCode)
+		}
+	}
+	body := strings.NewReader(`{"username":"ARTEX","password":"FixturePassword!123"}`)
+	response, err := server.Client().Post(server.URL+"/api/auth/login", "application/json", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		t.Fatalf("authentication slots remained blocked: %d", response.StatusCode)
+	}
+}
 
 func securityAuthFixture(t *testing.T) (*Server, string) {
 	t.Helper()

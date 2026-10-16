@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -217,6 +218,20 @@ func (s *Server) requireAuth(h http.Handler) http.Handler {
 }
 
 func decodeAuth(w http.ResponseWriter, r *http.Request, into any) error {
+	controller := http.NewResponseController(w)
+	decoded := false
+	defer func() {
+		if decoded {
+			_ = controller.SetReadDeadline(time.Time{})
+			return
+		}
+		// Do not drain an incomplete body without a deadline for keep-alive.
+		r.Close = true
+		w.Header().Set("Connection", "close")
+	}()
+	if err := controller.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return err
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(into); err != nil {
@@ -226,6 +241,7 @@ func decodeAuth(w http.ResponseWriter, r *http.Request, into any) error {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return fmt.Errorf("invalid request")
 	}
+	decoded = true
 	return nil
 }
 
