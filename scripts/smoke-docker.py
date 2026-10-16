@@ -59,7 +59,7 @@ try:
 except urllib.error.HTTPError as error:
     assert error.code == 401, error.code
 path = '/api/auth/login' if initialized else '/api/auth/init'
-credentials = {'password': 'ArtexSmokeOnly2026!'}
+credentials = {'password': 'ArtexSmokeUpdated2026!' if initialized else 'ArtexSmokeOnly2026!'}
 if initialized:
     credentials['username'] = 'ARTEX'
 token = json.loads(request(path, credentials))['token']
@@ -75,7 +75,31 @@ if not initialized:
     assert saved['retry_count'] == 2 and saved['retry_interval_ms'] == 125, saved
 else:
     assert config['retry_interval_ms'] == 125, config
-print('PASS version, database migrations, embedded UI, auth and persisted approval settings')
+if not initialized:
+    request('/api/auth/change-password', {'old_password': credentials['password'],
+                                         'new_password': 'ArtexSmokeUpdated2026!'}, token)
+    try:
+        request('/api/intercept/judge', token=token)
+        raise AssertionError('old session survived password change')
+    except urllib.error.HTTPError as error:
+        assert error.code == 401, error.code
+    token = json.loads(request('/api/auth/login', {'username': 'ARTEX',
+                      'password': 'ArtexSmokeUpdated2026!'}))['token']
+    for attempt in range(5):
+        try:
+            request('/api/auth/login', {'username': 'ARTEX', 'password': 'IncorrectSmokePassword!'})
+            raise AssertionError('incorrect password accepted')
+        except urllib.error.HTTPError as error:
+            assert error.code == (429 if attempt == 4 else 401), error.code
+    try:
+        request('/api/auth/login', {'username': 'ARTEX', 'password': 'ArtexSmokeUpdated2026!'})
+        raise AssertionError('locked account accepted login')
+    except urllib.error.HTTPError as error:
+        assert error.code == 429 and error.headers.get('Retry-After'), error.code
+    # An already-authenticated owner can change the password to clear a lock.
+    request('/api/auth/change-password', {'old_password': 'ArtexSmokeUpdated2026!',
+                                         'new_password': 'ArtexSmokeUpdated2026!'}, token)
+print('PASS version, database migrations, embedded UI, session revocation, lockout and persisted settings')
 '''
 
 BROWSER_CHECK = r'''

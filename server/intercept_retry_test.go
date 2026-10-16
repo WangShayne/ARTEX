@@ -32,7 +32,7 @@ func TestJudgeRetrySettingsAndFallbackHTTP(t *testing.T) {
 		}
 	})
 	s := &Server{m: &Manager{pg: d, interceptor: i}, jwtKey: []byte("judge-retry-test-key")}
-	token, err := signJWT(s.jwtKey)
+	token, err := testAuthToken(t, s)
 	if err != nil {
 		t.Fatal(err)
 	}
