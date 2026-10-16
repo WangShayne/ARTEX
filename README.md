@@ -102,7 +102,7 @@ docker compose up -d          # 拉取 mianhuatang11/artex 镜像 + postgres
 
 > 原镜像源 `autumn27/artex` 已从 Docker Hub 删除，镜像现由本仓库自维护为 **`mianhuatang11/artex`**。  
 > 镜像源不可用（或想自行改代码）时，本地从纯源码构建即可：`docker compose build && docker compose up -d`。  
-> Dockerfile 为多阶段构建（前端静态导出 → Go 静态编译 → 运行镜像），默认走国内友好依赖源，可加 `--build-arg GOPROXY=... / --build-arg NPM_REGISTRY=...` 覆盖。正式镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择对应架构；固定版本可在 `.env` 设置 `ARTEX_TAG=v0.3.16`。
+> Dockerfile 为多阶段构建（前端静态导出 → Go 静态编译 → 运行镜像），默认走国内友好依赖源，可加 `--build-arg GOPROXY=... / --build-arg NPM_REGISTRY=...` 覆盖。正式镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择对应架构；固定版本可在 `.env` 设置 `ARTEX_TAG=v0.3.19`。
 
 镜像已含常用工具（ripgrep/curl/vim/npm/nmap…）；`./skills` 与 `./data` 以绑定挂载持久化。
 
@@ -193,7 +193,7 @@ cd ARTEX
 ```bash
 cd ARTEX
 git pull                       # 更新 compose / 脚本（可选）
-# 指定版本：在 .env 设 ARTEX_TAG=v0.3.16；不设则用 latest
+# 指定版本：在 .env 设 ARTEX_TAG=v0.3.19；不设则用 latest
 docker compose pull artex
 docker compose up -d artex     # 换新镜像重启 → 自动迁移 schema
 docker image prune -f          # 清理旧镜像（可选）
